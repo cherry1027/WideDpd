@@ -1,16 +1,5 @@
-# WideDPD Lab
-
-Frontend-only research prototype for exploring wideband power-amplifier nonlinearities, memory effects, and digital predistortion. All values are deterministic synthetic demonstration data; nothing is presented as Ericsson data or measured RF performance.
-
-## 2-minute demo
-
-1. **Overview (15s):** establish the 800 MHz scenario and synthetic-data badge.
-2. **PA Simulation (35s):** push bandwidth toward 1.2 GHz, raise memory depth, and watch spectrum regrowth, AM/AM compression, and waveform lag update.
-3. **DPD Model Lab (25s):** switch models. Highlight domain features → memory polynomial → small ML residual corrector.
-4. **Before vs After (20s):** compare spectrum and animated EVM, NMSE, ACLR, and regrowth KPIs.
-5. **Memory Explorer (15s):** vary order and memory depth to show the accuracy/complexity frontier.
-6. **Model Benchmark (10s):** finish with the comparison table and “Best Trade-off” recommendation.
-
-## Local use
-
-`npm run dev` starts the preview. `npm run build` creates the production build.
+WideDPD Lab
+WideDPD Lab is an interactive research prototype for exploring wideband power-amplifier nonlinearities, memory effects, and digital predistortion. It presents these RF concepts through a polished engineering dashboard with responsive visualizations and configurable synthetic simulation parameters.
+The prototype includes a PA Simulation Lab, DPD Model Lab, before-and-after linearization analysis, Wideband Memory Explorer, and model benchmark. Users can compare Polynomial DPD, Memory Polynomial DPD, and Hybrid AI/ML DPD while examining spectrum regrowth, AM/AM behavior, EVM, NMSE, ACLR, parameter count, and computational complexity.
+Built with React, TypeScript, Tailwind CSS, Recharts, and Vite/Vinext, the application is entirely frontend-only and uses deterministic synthetic data. It does not use Ericsson datasets, measured RF results, paid APIs, a backend, or real ML training.
+The project is intended as a thesis demonstration and research communication tool—not a production RF measurement platform. Live demo: widedpd.charanvaranasi44.workers.dev.
