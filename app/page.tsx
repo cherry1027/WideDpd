@@ -1,0 +1,109 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { Activity, Atom, BarChart3, BrainCircuit, Check, Gauge, Menu, Play, Radio, RotateCcw, Sparkles, Waves, X, Zap } from "lucide-react";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
+type Model = "Polynomial DPD" | "Memory Polynomial DPD" | "Hybrid AI/ML DPD";
+type View = "Overview" | "PA Simulation" | "DPD Model Lab" | "Before vs After" | "Memory Explorer" | "Model Benchmark";
+const MODELS: Model[] = ["Polynomial DPD","Memory Polynomial DPD","Hybrid AI/ML DPD"];
+const nav: {label:View; icon:any; n:string}[] = [
+  {label:"Overview",icon:BarChart3,n:"01"},{label:"PA Simulation",icon:Waves,n:"02"},{label:"DPD Model Lab",icon:Atom,n:"03"},
+  {label:"Before vs After",icon:Activity,n:"04"},{label:"Memory Explorer",icon:Gauge,n:"05"},{label:"Model Benchmark",icon:Sparkles,n:"06"},
+];
+const colors={cyan:"#67dcef",amber:"#f7c66a",violet:"#a78bfa",green:"#5ee2a0",red:"#fb7185"};
+const tip={background:"#081117",border:"1px solid #27343c",borderRadius:6,fontSize:12,color:"#dce8ed"};
+
+function makeSpectrum(bw:number,nl:number,mem:number,noise:number,model:Model){
+  const improve=model==="Hybrid AI/ML DPD"?21:model==="Memory Polynomial DPD"?16:10;
+  return Array.from({length:97},(_,i)=>{
+    const f=-720+i*15, edge=bw/2, a=Math.abs(f), inside=a<=edge;
+    const input=inside?-17-7*Math.pow(a/Math.max(edge,1),10):-83+noise*.35;
+    const skirt=-78+nl*.9+mem*.65+35*Math.exp(-Math.pow((a-edge)/(55+mem*4),2));
+    const before=Math.max(input-1,skirt)+Math.sin(i*1.73)*.7;
+    return {f,input:+input.toFixed(2),before:+before.toFixed(2),after:+Math.max(input-.4,before-improve).toFixed(2)};
+  });
+}
+function makeWave(nl:number,mem:number){
+  return Array.from({length:100},(_,i)=>{const t=i/8,x=Math.sin(t)+.28*Math.sin(t*3.1); return {t:+t.toFixed(1),input:x,output:Math.tanh(x*(1+nl/55))*.88+Math.sin(t-.45)*mem/85};});
+}
+function metrics(bw:number,nl:number,mem:number,model:Model){
+  const strain=(bw-100)/1100*5+nl/18+mem/4;
+  const before={nmse:-19.2-strain*.28,evm:8.4+strain*.32,aclr:-31.8+strain*.36};
+  const gain=model==="Hybrid AI/ML DPD"?16.8:model==="Memory Polynomial DPD"?12.7:8.2;
+  return {before,after:{nmse:before.nmse-gain,evm:Math.max(1.05,before.evm-gain*.38),aclr:before.aclr-gain*.82},gain};
+}
+const fmt=(n:number,d=1)=>n.toFixed(d);
+
+function ShellTitle({eyebrow,title,copy,action}:{eyebrow:string,title:string,copy:string,action?:React.ReactNode}){
+  return <div className="mb-6 flex flex-col justify-between gap-4 xl:flex-row xl:items-end"><div><p className="mb-2 font-mono text-xs uppercase tracking-[.18em] text-cyan-300">{eyebrow}</p><h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{title}</h1><p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">{copy}</p></div>{action}</div>
+}
+function Panel({title,sub,children,className=""}:{title:string,sub?:string,children:React.ReactNode,className?:string}){
+  return <div className={"panel rounded-lg border border-white/8 bg-[#0a131a] p-4 sm:p-5 "+className}><div className="mb-4"><p className="text-sm font-semibold">{title}</p>{sub&&<p className="mt-1 text-xs text-slate-500">{sub}</p>}</div>{children}</div>
+}
+function Control({label,value,unit,min,max,step,onChange}:{label:string,value:number,unit:string,min:number,max:number,step:number,onChange:(n:number)=>void}){
+  return <div className="py-2"><div className="mb-3 flex justify-between text-sm"><span className="text-slate-400">{label}</span><span className="font-mono text-cyan-200">{value}{unit}</span></div><Slider min={min} max={max} step={step} value={[value]} onValueChange={v=>onChange(v[0])}/><div className="mt-2 flex justify-between font-mono text-[10px] text-slate-600"><span>{min}</span><span>{max}</span></div></div>
+}
+function Spectrum({data,after=false}:{data:any[];after?:boolean}){
+ return <div className="h-[290px]"><ResponsiveContainer><AreaChart data={data}><defs><linearGradient id="spec" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={colors.amber} stopOpacity={.18}/><stop offset="1" stopColor={colors.amber} stopOpacity={0}/></linearGradient></defs><CartesianGrid stroke="#ffffff0b" vertical={false}/><XAxis dataKey="f" stroke="#52616b" tick={{fontSize:11}}/><YAxis domain={[-90,0]} stroke="#52616b" tick={{fontSize:11}}/><Tooltip contentStyle={tip}/><Area type="monotone" dataKey="before" name="PA output" stroke={colors.amber} fill="url(#spec)" dot={false}/><Line type="monotone" dataKey="input" name="Input" stroke={colors.cyan} dot={false} strokeWidth={1.6}/>{after&&<Line type="monotone" dataKey="after" name="After DPD" stroke={colors.green} dot={false} strokeWidth={2}/>}<Legend wrapperStyle={{fontSize:12}}/></AreaChart></ResponsiveContainer></div>
+}
+function KPICard({label,before,after,unit}:{label:string,before:string,after:string,unit:string}){
+ return <div className="kpi-pop rounded-lg border border-white/8 bg-[#0a131a] p-4"><p className="text-xs text-slate-500">{label}</p><div className="mt-4 flex items-end gap-2"><span className="font-mono text-xl text-slate-500 line-through decoration-slate-700">{before}</span><span className="pb-1 text-slate-700">→</span><span className="font-mono text-2xl font-semibold text-emerald-300">{after}</span></div><p className="mt-2 text-[11px] text-slate-600">{unit} · synthetic estimate</p></div>
+}
+
+export default function Home(){
+ const [view,setView]=useState<View>("Overview"),[menu,setMenu]=useState(false),[bw,setBw]=useState(800),[power,setPower]=useState(27),[nl,setNl]=useState(62),[mem,setMem]=useState(6),[noise,setNoise]=useState(3),[order,setOrder]=useState(7),[model,setModel]=useState<Model>("Hybrid AI/ML DPD"),[run,setRun]=useState(1),[busy,setBusy]=useState(false);
+ const spec=useMemo(()=>makeSpectrum(bw,nl,mem,noise,model),[bw,nl,mem,noise,model,run]);
+ const wave=useMemo(()=>makeWave(nl,mem),[nl,mem,run]);
+ const met=metrics(bw,nl,mem,model), params=(order+1)*(mem+1)+(model==="Hybrid AI/ML DPD"?96:0);
+ const simulate=()=>{setBusy(true);setTimeout(()=>{setRun(x=>x+1);setBusy(false)},450)};
+ useEffect(()=>{const mc=(document as any).modelContext;if(!mc?.registerTool)return;const a=new AbortController();void mc.registerTool({name:"configure_simulation",title:"Configure simulation",description:"Set the visible synthetic PA simulation controls.",inputSchema:{type:"object",properties:{bandwidth:{type:"number",minimum:100,maximum:1200},memoryDepth:{type:"number",minimum:1,maximum:12}},additionalProperties:false},annotations:{readOnlyHint:false},execute:(x:any)=>{if(x.bandwidth)setBw(x.bandwidth);if(x.memoryDepth)setMem(x.memoryDepth);setView("PA Simulation");return {status:"configured",bandwidth:x.bandwidth??bw,memoryDepth:x.memoryDepth??mem}}},{signal:a.signal});return()=>a.abort()},[]);
+ const reset=()=>{setBw(800);setPower(27);setNl(62);setMem(6);setNoise(3);setOrder(7);setModel("Hybrid AI/ML DPD")};
+ return <main className="min-h-screen bg-[#05090d] text-[#e7f0f4]">
+  <header className="sticky top-0 z-40 flex h-[72px] items-center gap-4 border-b border-white/8 bg-[#071017]/95 px-4 backdrop-blur-xl lg:px-7">
+   <Button variant="ghost" size="icon" className="lg:hidden" onClick={()=>setMenu(!menu)} aria-label="Toggle navigation">{menu?<X/>:<Menu/>}</Button>
+   <button onClick={()=>setView("Overview")} className="flex items-center gap-3 text-left"><div className="grid size-9 place-items-center rounded-md border border-cyan-400/30 bg-cyan-400/10"><Radio className="size-5 text-cyan-300"/></div><div><p className="font-mono text-[15px] font-semibold tracking-[.08em]">WIDEDPD <span className="text-cyan-300">LAB</span></p><p className="text-[11px] text-slate-500">AI-assisted predistortion research</p></div></button>
+   <div className="ml-auto hidden items-center gap-2 rounded-full border border-amber-300/20 bg-amber-300/5 px-3 py-1.5 text-xs text-amber-200 sm:flex"><span className="size-1.5 rounded-full bg-amber-300"/>Research Prototype — Synthetic PA Model &amp; Demonstration Data</div>
+  </header>
+  <aside className={`${menu?"translate-x-0":"-translate-x-full"} fixed inset-y-[72px] left-0 z-30 w-64 border-r border-white/8 bg-[#071017] p-3 transition-transform lg:translate-x-0`}>
+   <p className="px-3 pb-3 pt-2 font-mono text-[11px] uppercase tracking-[.15em] text-slate-600">Research workspace</p>
+   <nav className="space-y-1">{nav.map(({label,icon:Icon,n})=><button key={label} onClick={()=>{setView(label);setMenu(false)}} className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm transition ${view===label?"bg-cyan-300/10 text-cyan-200 ring-1 ring-inset ring-cyan-300/20":"text-slate-400 hover:bg-white/5 hover:text-white"}`}><Icon className="size-4"/>{label}<span className="ml-auto font-mono text-[10px] text-slate-600">{n}</span></button>)}</nav>
+   <div className="absolute bottom-4 left-3 right-3 rounded-lg border border-white/8 bg-black/20 p-3"><div className="mb-2 flex justify-between text-xs"><span className="text-slate-500">Deterministic engine</span><span className="text-emerald-300">READY</span></div><div className="h-1 rounded-full bg-gradient-to-r from-cyan-500 to-emerald-400"/></div>
+  </aside>
+  <section className="p-4 pb-16 lg:ml-64 lg:p-7">
+   <div className="mb-4 flex items-center gap-2 sm:hidden"><span className="rounded-full border border-amber-300/20 bg-amber-300/5 px-3 py-1 text-[10px] text-amber-200">SYNTHETIC RESEARCH PROTOTYPE</span></div>
+   {view==="Overview"&&<><ShellTitle eyebrow="System overview / 01" title="Wideband linearization, made visible." copy="Explore how nonlinear distortion and memory effects scale across bandwidth—and how hybrid DPD recovers a cleaner transmitter output." action={<Button onClick={()=>setView("PA Simulation")} className="bg-cyan-300 text-[#041014] hover:bg-cyan-200">Open simulation lab →</Button>}/>
+    <div className="mb-4 grid grid-cols-2 gap-3 xl:grid-cols-4">{[["Carrier BW",bw+" MHz","Wideband"],["PA operating point","+"+power+".0 dBm","Near compression"],["Baseline NMSE",fmt(met.before.nmse)+" dB","Needs correction"],["Hybrid DPD NMSE",fmt(metrics(bw,nl,mem,"Hybrid AI/ML DPD").after.nmse)+" dB","Best trade-off"]].map(([a,b,c],i)=><div key={a} className="metric-card rounded-lg border border-white/8 bg-[#0a131a] p-4"><div className="mb-5 flex justify-between"><span className="text-xs text-slate-500">{a}</span><span className="font-mono text-[10px] text-slate-600">0{i+1}</span></div><p className="font-mono text-2xl font-semibold">{b}</p><p className="mt-1 text-xs text-slate-500">{c}</p></div>)}</div>
+    <div className="grid gap-4 xl:grid-cols-[1.65fr_1fr]"><Panel title="Transmitter spectrum" sub="Input vs nonlinear PA output · synthetic"><Spectrum data={spec}/></Panel><Panel title="Research signal chain" sub="Hybrid correction path"><div className="space-y-2">{["Baseband IQ","Domain features","Memory polynomial","ML residual corrector","Nonlinear PA","Linearized RF output"].map((x,i)=><div key={x} className={`flex items-center gap-3 rounded-md border px-3 py-3 ${i===3?"border-violet-400/30 bg-violet-400/8":"border-white/7"}`}><span className="grid size-7 place-items-center rounded bg-white/5 font-mono text-[10px] text-slate-500">{String(i+1).padStart(2,"0")}</span><span className="text-sm text-slate-300">{x}</span>{i<5&&<span className="ml-auto text-slate-600">→</span>}</div>)}</div></Panel></div>
+   </>}
+   {view==="PA Simulation"&&<><ShellTitle eyebrow="PA simulation lab / 02" title="Stress the nonlinear PA." copy="Tune the synthetic wideband model and observe spectral regrowth, gain compression, memory distortion, and waveform clipping." action={<div className="flex gap-2"><Button variant="outline" onClick={reset}><RotateCcw/> Reset</Button><Button onClick={simulate} className="bg-cyan-300 text-[#041014] hover:bg-cyan-200"><Play/> {busy?"Running…":"Run simulation"}</Button></div>}/>
+    <div className="grid gap-4 xl:grid-cols-[280px_1fr]"><Panel title="PA model controls" sub={"Run "+String(run).padStart(3,"0")}><div className="space-y-2"><Control label="Bandwidth" value={bw} unit=" MHz" min={100} max={1200} step={50} onChange={setBw}/><Control label="Input power" value={power} unit=" dBm" min={10} max={32} step={1} onChange={setPower}/><Control label="Nonlinearity" value={nl} unit=" %" min={10} max={100} step={1} onChange={setNl}/><Control label="Memory depth" value={mem} unit=" taps" min={1} max={12} step={1} onChange={setMem}/><Control label="Noise level" value={noise} unit=" dB" min={0} max={12} step={1} onChange={setNoise}/></div></Panel>
+    <div className="space-y-4"><Panel title="Spectrum & spectral regrowth" sub={"Occupied bandwidth "+bw+" MHz"}><Spectrum data={spec}/></Panel><div className="grid gap-4 md:grid-cols-2"><Panel title="AM/AM characteristic" sub="Gain compression near saturation"><div className="h-52"><ResponsiveContainer><LineChart data={Array.from({length:31},(_,i)=>({x:i,y:20*Math.tanh(i/20*(1+nl/100))}))}><CartesianGrid stroke="#ffffff0b"/><XAxis dataKey="x" stroke="#52616b"/><YAxis stroke="#52616b"/><Tooltip contentStyle={tip}/><Line dataKey="x" name="Ideal" stroke="#3c5360" dot={false}/><Line dataKey="y" name="PA output" stroke={colors.amber} dot={false}/></LineChart></ResponsiveContainer></div></Panel><Panel title="Time-domain waveform" sub="Memory-induced envelope lag"><div className="h-52"><ResponsiveContainer><LineChart data={wave}><CartesianGrid stroke="#ffffff0b"/><XAxis dataKey="t" stroke="#52616b"/><YAxis stroke="#52616b"/><Tooltip contentStyle={tip}/><Line dataKey="input" stroke={colors.cyan} dot={false}/><Line dataKey="output" stroke={colors.amber} dot={false}/></LineChart></ResponsiveContainer></div></Panel></div></div></div>
+   </>}
+   {view==="DPD Model Lab"&&<><ShellTitle eyebrow="DPD model lab / 03" title="Compare correction architectures." copy="Switch between interpretable polynomial methods and a compact hybrid residual corrector. Values update across the full workspace."/>
+    <Tabs value={model} onValueChange={v=>setModel(v as Model)} className="mb-4"><TabsList className="h-auto flex-wrap bg-[#0a131a] p-1">{MODELS.map(m=><TabsTrigger key={m} value={m} className="px-4 py-2.5">{m}</TabsTrigger>)}</TabsList></Tabs>
+    <Panel title="End-to-end signal path" sub={model}><div className="flex flex-col items-stretch justify-center gap-3 py-8 md:flex-row md:items-center">{["Signal",model,"Nonlinear PA","Output"].map((x,i)=><div className="contents" key={x}><div className={`min-w-36 rounded-lg border p-5 text-center ${i===1?"border-cyan-300/40 bg-cyan-300/8":"border-white/10 bg-white/[.02]"}`}><div className="mx-auto mb-3 grid size-10 place-items-center rounded-full bg-white/5">{i===1?<BrainCircuit className="text-cyan-300"/>:<Waves className="text-slate-400"/>}</div><p className="text-sm font-semibold">{x}</p></div>{i<3&&<span className="text-center text-slate-600">→</span>}</div>)}</div></Panel>
+    <div className="mt-4 grid gap-4 lg:grid-cols-[1.35fr_1fr]"><Panel title={model==="Hybrid AI/ML DPD"?"Hybrid residual architecture":"Model structure"} sub="Domain knowledge first; learned correction second"><div className="grid gap-2 sm:grid-cols-3">{(model==="Hybrid AI/ML DPD"?["Domain features","Memory polynomial","Small ML residual corrector"]:model==="Memory Polynomial DPD"?["IQ samples","Memory basis","Polynomial inverse"]:["IQ samples","Static basis","Polynomial inverse"]).map((x,i)=><div key={x} className="rounded-lg border border-white/8 bg-black/15 p-4"><span className="font-mono text-[10px] text-violet-300">STAGE {i+1}</span><p className="mt-2 text-sm">{x}</p></div>)}</div></Panel><Panel title="Current model profile"><div className="space-y-3 text-sm">{[["Polynomial order",String(order)],["Memory depth",mem+" taps"],["Estimated parameters",params.toLocaleString()],["Correction gain",fmt(met.gain)+" dB"]].map(([a,b])=><div key={a} className="flex justify-between border-b border-white/6 pb-3"><span className="text-slate-500">{a}</span><span className="font-mono">{b}</span></div>)}</div></Panel></div>
+   </>}
+   {view==="Before vs After"&&<><ShellTitle eyebrow="Linearization results / 04" title="See what correction recovers." copy={"Active model: "+model+". All figures are deterministic demonstration values, not measured RF results."}/>
+    <div className="mb-4 grid grid-cols-2 gap-3 xl:grid-cols-4"><KPICard label="EVM" before={fmt(met.before.evm)+"%"} after={fmt(met.after.evm)+"%"} unit="RMS"/><KPICard label="NMSE" before={fmt(met.before.nmse)} after={fmt(met.after.nmse)} unit="dB"/><KPICard label="ACLR" before={fmt(met.before.aclr)} after={fmt(met.after.aclr)} unit="dBc"/><KPICard label="Regrowth reduction" before="0.0" after={fmt(met.gain*.82)} unit="dB"/></div>
+    <Panel title="Before / after spectrum overlay" sub={bw+" MHz carrier · "+model}><Spectrum data={spec} after/></Panel>
+   </>}
+   {view==="Memory Explorer"&&<><ShellTitle eyebrow="Wideband memory explorer / 05" title="Map the complexity frontier." copy="Increasing bandwidth and memory depth improves model coverage, but rapidly expands parameters, compute, and state memory."/>
+    <div className="grid gap-4 xl:grid-cols-[300px_1fr]"><Panel title="Explorer controls"><Control label="Bandwidth" value={bw} unit=" MHz" min={100} max={1200} step={50} onChange={setBw}/><Control label="Memory depth" value={mem} unit=" taps" min={1} max={12} step={1} onChange={setMem}/><Control label="Polynomial order" value={order} unit="" min={3} max={11} step={2} onChange={setOrder}/></Panel>
+    <div className="space-y-4"><div className="grid grid-cols-2 gap-3 lg:grid-cols-5">{[["NMSE",fmt(met.after.nmse)+" dB"],["EVM",fmt(met.after.evm)+"%"],["Parameters",params.toLocaleString()],["Compute",Math.round(params*bw/100)+" kMAC"],["Memory",(params*4/1024).toFixed(1)+" KB"]].map(([a,b])=><div key={a} className="rounded-lg border border-white/8 bg-[#0a131a] p-4"><p className="text-xs text-slate-500">{a}</p><p className="mt-3 font-mono text-lg text-cyan-100">{b}</p></div>)}</div><Panel title="Bandwidth sensitivity" sub="Predicted error and complexity vs occupied bandwidth"><div className="h-[300px]"><ResponsiveContainer><LineChart data={[100,300,500,700,900,1200].map(x=>({bw:x,EVM:+(1.1+x/650+mem*.11).toFixed(2),Complexity:Math.round(params*x/100)}))}><CartesianGrid stroke="#ffffff0b"/><XAxis dataKey="bw" stroke="#52616b"/><YAxis yAxisId="a" stroke="#52616b"/><YAxis yAxisId="b" orientation="right" stroke="#52616b"/><Tooltip contentStyle={tip}/><Legend/><Line yAxisId="a" dataKey="EVM" stroke={colors.amber}/><Line yAxisId="b" dataKey="Complexity" stroke={colors.violet}/></LineChart></ResponsiveContainer></div></Panel></div></div>
+   </>}
+   {view==="Model Benchmark"&&<Benchmark bw={bw} mem={mem} order={order} onPick={m=>{setModel(m);setView("Before vs After")}}/>}
+  </section>
+ </main>
+}
+function Benchmark({bw,mem,order,onPick}:{bw:number;mem:number;order:number;onPick:(m:Model)=>void}){
+ const scale=1+(bw-100)/2200, rows=[{m:"Polynomial DPD" as Model,n:-29.8,e:3.4,a:-43.2,p:order*3,c:"Low",ram:"0.4 KB",r:"Moderate",s:76},{m:"Memory Polynomial DPD" as Model,n:-35.1,e:2.1,a:-48.7,p:order*mem*2,c:"Medium",ram:(order*mem*.06).toFixed(1)+" KB",r:"Strong",s:88},{m:"Hybrid AI/ML DPD" as Model,n:-39.2,e:1.4,a:-53.6,p:order*mem*2+96,c:"Medium+",ram:(order*mem*.06+3.8).toFixed(1)+" KB",r:"Excellent",s:94}];
+ return <><ShellTitle eyebrow="Model benchmark / 06" title="Choose the engineering trade-off." copy="A normalized comparison under the current bandwidth, memory-depth, and polynomial-order configuration."/>
+ <Panel title="DPD architecture benchmark" sub={"Scenario: "+bw+" MHz · "+mem+" taps · order "+order} className="overflow-x-auto"><Table><TableHeader><TableRow className="border-white/8 hover:bg-transparent">{["Model","NMSE","EVM","ACLR","Parameters","Compute","Memory","Robustness","Score"].map(h=><TableHead key={h} className="whitespace-nowrap text-slate-500">{h}</TableHead>)}</TableRow></TableHeader><TableBody>{rows.map((r,i)=><TableRow key={r.m} onClick={()=>onPick(r.m)} className="cursor-pointer border-white/6 hover:bg-white/[.035]"><TableCell className="min-w-52 font-medium">{r.m}{i===2&&<span className="ml-2 rounded bg-emerald-300/10 px-2 py-1 text-[10px] text-emerald-300">RECOMMENDED</span>}</TableCell><TableCell className="font-mono">{fmt(r.n/scale)} dB</TableCell><TableCell className="font-mono">{fmt(r.e*scale)}%</TableCell><TableCell className="font-mono">{fmt(r.a/scale)} dBc</TableCell><TableCell className="font-mono">{r.p}</TableCell><TableCell>{r.c}</TableCell><TableCell>{r.ram}</TableCell><TableCell>{r.r}</TableCell><TableCell><span className={`font-mono text-lg ${i===2?"text-emerald-300":"text-slate-300"}`}>{r.s}</span></TableCell></TableRow>)}</TableBody></Table></Panel>
+ <div className="mt-4 overflow-hidden rounded-lg border border-emerald-300/20 bg-gradient-to-r from-emerald-300/10 to-cyan-300/5 p-5"><div className="flex flex-col gap-4 sm:flex-row sm:items-center"><div className="grid size-12 place-items-center rounded-lg bg-emerald-300/12"><Check className="text-emerald-300"/></div><div><p className="font-mono text-[11px] uppercase tracking-[.16em] text-emerald-300">Best trade-off</p><h3 className="mt-1 text-xl font-semibold">Hybrid AI/ML DPD</h3><p className="mt-1 text-sm text-slate-400">Best synthetic linearization score while retaining a compact, domain-guided model structure.</p></div><Button onClick={()=>onPick("Hybrid AI/ML DPD")} className="sm:ml-auto bg-emerald-300 text-[#04110c] hover:bg-emerald-200">Inspect results →</Button></div></div></>
+}
